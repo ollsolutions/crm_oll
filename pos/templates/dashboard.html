@@ -1,0 +1,174 @@
+{% extends 'login.html' %}
+{% block content %}
+<head>
+    {% load static %}
+    <link rel="stylesheet" type="text/css" href="{% static 'css/dashboard.css' %}">
+    <meta charset="utf-8">
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- jQuery UI CSS -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+
+    <!-- jQuery UI JS -->
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap4.min.css">
+
+    <!-- DataTables JS -->
+    <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap4.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<nav>
+    <ul>
+        <li><a href="#" class="tab-link" data-tab="seguimiento">Seguimiento</a></li>
+        <li><a href="#" class="tab-link" data-tab="registrar-venta">Registrar Venta</a></li>
+        <li><a href="#" class="tab-link" data-tab="agendados">Agendados</a></li>
+    </ul>
+</nav>
+
+<div class="container">
+    <div id="seguimiento" class="tab-content">
+        <h2>Dashboard</h2>
+        {% if user.is_authenticated %}
+            <p>Bienvenido, {{ user.nombre }}!</p>
+        {% else %}
+            <p>No has iniciado sesión.</p>
+        {% endif %}
+        <canvas id="ventasPorDiaAsesor"></canvas>
+    </div>
+
+    <div id="registrar-venta" class="tab-content" style="display: none;">
+        <h2>Registrar Venta</h2>
+        <form method="POST" action="{% url 'dashboard' %}">
+            {% csrf_token %}
+            <label>Tipo de Documento:</label>
+            <select name="tipo" id="tipo_doc" required>
+                <option value="DNI">DNI</option>
+                <option value="CE">CE</option>
+                <option value="RUC">RUC</option>
+            </select>
+            <label>N° Doc Cliente:</label>
+            <input type="text" name="doc_cliente" id="doc_cliente" required>
+            <label>Cliente:</label>
+            <input type="text" name="cliente" required>
+            <label>Telf. Cliente:</label>
+            <input type="text" name="telf_cliente" required pattern="\d{9}" title="Debe contener 9 dígitos numéricos">
+            <label>Distrito:</label>
+            <input type="text" name="distrito" required>
+            <button type="submit">Guardar Venta</button>
+        </form>
+    </div>
+
+    <div id="agendados" class="tab-content" style="display: none;">
+        <h2>Agendados</h2>
+        <table id="agendadosTable" class="display">
+            <thead>
+                <tr>
+                    <th>Fecha - Agendado</th>
+                    <th>DNI</th>
+                    <th>Nombre</th>
+                    <th>Teléfono</th>
+                    <th>Tipificación</th>
+                    <th>Descripción</th>
+                    <th>Color</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cliente in agendados %}
+                    <tr data-dni="{{ cliente.dni_cliente }}">
+                        <td>{{ cliente.fecha_agenda }}</td>
+                        <td>{{ cliente.dni_cliente }}</td>
+                        <td>{{ cliente.nombre }}</td>
+                        <td>{{ cliente.telefono }}</td>
+                        <td>{{ cliente.tipificacion }}</td>
+                        <td>{{ cliente.descripcion }}</td>
+                        <td>
+                            <select class="color-selector">
+                                <option value="">Normal</option>
+                                <option value="yellow">Amarillo</option>
+                                <option value="green">Verde</option>
+                                <option value="red">Rojo</option>
+                                <option value="blue">Azul</option>
+                            </select>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <a href="{% url 'logout' %}" class="btn btn-danger">Logout</a>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll(".tab-link").forEach(link => {
+            link.addEventListener("click", function(event) {
+                event.preventDefault();
+                document.querySelectorAll(".tab-content").forEach(content => content.style.display = "none");
+                document.getElementById(this.getAttribute("data-tab")).style.display = "block";
+            });
+        });
+    });
+
+    document.addEventListener("DOMContentLoaded", function () {
+        let boton = document.getElementById("mi-boton");
+        if (!boton) {
+            let observer = new MutationObserver(() => {
+                boton = document.getElementById("mi-boton");
+                if (boton) {
+                    boton.addEventListener("click", () => console.log("Botón clickeado"));
+                    observer.disconnect();
+                }
+            });
+            observer.observe(document.body, { childList: true, subtree: true });
+        } else {
+            boton.addEventListener("click", () => console.log("Botón clickeado"));
+        }
+    });
+
+    document.getElementById("tipo_doc").addEventListener("change", function () {
+        let docCliente = document.getElementById("doc_cliente");
+        let validaciones = { "DNI": "\\d{8}", "CE": "\\d{9}", "RUC": "\\d{10}" };
+        docCliente.pattern = validaciones[this.value];
+        docCliente.title = `Debe tener exactamente ${validaciones[this.value].slice(-2)} números`;
+    });
+
+    new Chart(document.getElementById('ventasPorDiaAsesor').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: Object.keys({{ ventas_por_dia|default:"{}"|safe }}),
+            datasets: [{
+                label: 'Ventas por Día',
+                data: Object.values({{ ventas_por_dia|default:"{}"|safe }}),
+                borderColor: 'red',
+                backgroundColor: 'rgba(255, 0, 0, 0.2)',
+                borderWidth: 2
+            }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+
+    $(document).ready(() => $('#agendadosTable').DataTable());
+
+    document.querySelectorAll(".color-selector").forEach(select => {
+        let row = select.closest("tr");
+        let dni = row.dataset.dni;
+        let savedColor = localStorage.getItem(`rowColor_${dni}`);
+        if (savedColor) row.style.backgroundColor = select.value = savedColor;
+
+        select.addEventListener("change", function () {
+            let selectedColor = select.value;
+            row.style.backgroundColor = selectedColor || "transparent";
+            selectedColor ? localStorage.setItem(`rowColor_${dni}`, selectedColor) : localStorage.removeItem(`rowColor_${dni}`);
+        });
+    });
+</script>
+
+
+
+{% endblock %}
